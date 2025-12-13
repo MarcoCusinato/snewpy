@@ -4,6 +4,7 @@ The submodule ``snewpy.models.ccsn_loaders`` contains classes to load core-colla
 supernova models from files stored on disk.
 """
 
+import re
 import logging
 import os
 import re
@@ -943,4 +944,48 @@ class Fischer_2020(PinchedModel):
 
         tf.close()
 
+        super().__init__(simtab, metadata)
+
+
+class Aenus_models(PinchedModel):
+    def __init__(self, filename, rotation, Bfield,
+                 eos='LS220', los='avg', metadata={}):
+        ## Read ASCII files, similar to Garching but different
+        mergtab = None
+        for flavor in ThreeFlavor:
+            _sfx = 'nua' if (flavor.is_electron and flavor.is_antineutrino) else flavor.name.replace('_', '').lower() if flavor.is_electron else "nux"
+            print(_sfx, (flavor.is_electron and flavor.is_antineutrino))
+            _filename = '{}-{}-{}-{}_{}_{}.txt'.format(filename, eos, rotation, Bfield, _sfx, los)
+            _lname = 'L_{}'.format(flavor.name)
+            _ename = 'E_{}'.format(flavor.name)
+            _e2name = 'E2_{}'.format(flavor.name)
+            _aname = 'ALPHA_{}'.format(flavor.name)
+
+            # Open the requested filename using the model downloader.
+            datafile = self.request_file(_filename)
+
+            simtab = Table.read(datafile,
+                                names=['TIME', _lname, _ename, _e2name],
+                                format='ascii')
+            simtab['TIME'].unit = 's'
+            simtab[_lname].unit = '1e51 erg/s'
+            simtab[_aname] = (2*simtab[_ename]**2 - simtab[_e2name]) / (simtab[_e2name] - simtab[_ename]**2)
+            simtab[_ename].unit = 'MeV'
+            del simtab[_e2name]
+            if mergtab is None:
+                mergtab = simtab
+            else:
+                mergtab = join(mergtab, simtab, keys='TIME', join_type='left')
+                mergtab[_lname].fill_value = 0.
+                mergtab[_ename].fill_value = 0.
+                mergtab[_aname].fill_value = 0.
+        print('Here')
+        simtab = mergtab.filled()
+        print('Done')
+        if not metadata:
+            metadata = {
+                'Progenitor mass': float(re.search(r'\d+(\.\d+)?',filename).group()) * u.Msun,
+                'EOS': eos,
+            }
+        print('Done')
         super().__init__(simtab, metadata)

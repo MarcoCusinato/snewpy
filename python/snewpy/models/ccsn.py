@@ -392,6 +392,10 @@ class Bugli_2021(loaders.Bugli_2021):
             filename = f'{Bfield}_b12_3d_{rotation}deg_snewpy_{direction}.dat'
         return super().__init__(filename=filename, metadata=self.metadata)
 
+class Aenus_models(loaders.Aenus_models):
+    def __init__(self, filename:str, rotation:str, Bfield:str, eos:str, los:str='avg'):
+        super().__init__(filename, rotation, Bfield, eos, los)
+
 class SNOwGLoBES:
     """A model that does not inherit from SupernovaModel (yet) and imports a group of SNOwGLoBES files."""
 

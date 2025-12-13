@@ -38,7 +38,8 @@ from snewpy.rate_calculator import RateCalculator, center
 from snewpy.flux import Container
 logger = logging.getLogger(__name__)
 
-def generate_time_series(model_path, model_type, transformation_type, d, output_filename=None, ntbins=30, deltat=None, snmodel_dict={}):
+def generate_time_series(model_path, model_type, transformation_type, d,
+                         output_filename=None, ntbins=30, deltat=None, snmodel_dict={}):
     """Generate time series files in SNOwGLoBES format.
 
     This version will subsample the times in a supernova model, produce energy
@@ -71,7 +72,19 @@ def generate_time_series(model_path, model_type, transformation_type, d, output_
     model_class = getattr(snewpy.models.ccsn, model_type)
 
     # Choose flavor transformation. Use dict to associate the transformation name with its class.
-    flavor_transformation_dict = {'NoTransformation': NoTransformation(), 'AdiabaticMSW_NMO': AdiabaticMSW(mh=MassHierarchy.NORMAL), 'AdiabaticMSW_IMO': AdiabaticMSW(mh=MassHierarchy.INVERTED), 'NonAdiabaticMSWH_NMO': NonAdiabaticMSWH(mh=MassHierarchy.NORMAL), 'NonAdiabaticMSWH_IMO': NonAdiabaticMSWH(mh=MassHierarchy.INVERTED), 'TwoFlavorDecoherence': TwoFlavorDecoherence(), 'ThreeFlavorDecoherence': ThreeFlavorDecoherence(), 'NeutrinoDecay_NMO': NeutrinoDecay(mh=MassHierarchy.NORMAL), 'NeutrinoDecay_IMO': NeutrinoDecay(mh=MassHierarchy.INVERTED), 'QuantumDecoherence_NMO': QuantumDecoherence(mh=MassHierarchy.NORMAL), 'QuantumDecoherence_IMO': QuantumDecoherence(mh=MassHierarchy.INVERTED)}
+    NMO = MixingParameters('NORMAL')
+    IMO = MixingParameters('INVERTED')
+    flavor_transformation_dict = {'NoTransformation': NoTransformation(), 
+                                  'AdiabaticMSW_NMO': AdiabaticMSW(NMO), 
+                                  'AdiabaticMSW_IMO': AdiabaticMSW(IMO), 
+                                  'NonAdiabaticMSWH_NMO': NonAdiabaticMSWH(NMO), 
+                                  'NonAdiabaticMSWH_IMO': NonAdiabaticMSWH(IMO), 
+                                  'TwoFlavorDecoherence': TwoFlavorDecoherence(NMO), 
+                                  'ThreeFlavorDecoherence': ThreeFlavorDecoherence(), 
+                                  'NeutrinoDecay_NMO': NeutrinoDecay(NMO), 
+                                  'NeutrinoDecay_IMO': NeutrinoDecay(IMO), 
+                                  'QuantumDecoherence_NMO': QuantumDecoherence(NMO), 
+                                  'QuantumDecoherence_IMO': QuantumDecoherence(IMO)}
     flavor_transformation = flavor_transformation_dict[transformation_type]
 
     model_dir, model_file = os.path.split(os.path.abspath(model_path))
@@ -87,7 +100,7 @@ def generate_time_series(model_path, model_type, transformation_type, d, output_
         dt = (tmax - tmin) / (ntbins+1)
 
     times = np.arange(tmin/u.s, tmax/u.s, dt/u.s)*u.s
-    energy = np.linspace(0, 100, 501) * u.MeV
+    energy = (np.linspace(0, 100, 201)+0.25) * u.MeV
     flux = snmodel.get_flux(t=times, E=energy,  distance=d, flavor_xform=flavor_transformation)
     fluence = flux.integrate('time', limits = times).integrate('energy', limits = energy)
     #save resulting fluence to file
@@ -99,7 +112,8 @@ def generate_time_series(model_path, model_type, transformation_type, d, output_
     fluence.save(tfname)
     return tfname
 
-def generate_fluence(model_path, model_type, transformation_type, d, output_filename=None, tstart=None, tend=None, snmodel_dict={}):
+def generate_fluence(model_path, model_type, transformation_type, d, output_filename=None,
+                     tstart=None, tend=None, snmodel_dict={}):
     """Generate fluence files in SNOwGLoBES format.
 
     This version will subsample the times in a supernova model, produce energy
