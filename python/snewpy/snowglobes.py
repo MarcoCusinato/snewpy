@@ -106,11 +106,11 @@ def generate_time_series(model_path, model_type, transformation_type, d,
     #save resulting fluence to file
     if output_filename is not None:
         tfname = output_filename + '.npz'
+        fluence.save(tfname)
+        return tfname
     else:
-        model_file_root, _ = os.path.splitext(model_file)  # strip extension (if present)
-        tfname = f'{model_file_root}.{transformation_type}.{tmin:.3f},{tmax:.3f},{ntbins:d}-{d:.1f}.npz'
-    fluence.save(tfname)
-    return tfname
+        return fluence
+   
 
 def generate_fluence(model_path, model_type, transformation_type, d, output_filename=None,
                      tstart=None, tend=None, snmodel_dict={}):
@@ -188,14 +188,14 @@ def generate_fluence(model_path, model_type, transformation_type, d, output_file
     #store the energy bin centers instead of the edges
     if output_filename is not None:
         tfname = output_filename+'.npz'
+        fluence.save(tfname)
+        return tfname
     else:
-        model_file_root, _ = os.path.splitext(model_file)  # strip extension (if present)
-        tfname = f'{model_file_root}.{transformation_type}.{times[0]:.3f},{times[1]:.3f},{len(times)-1:d}-{d:.1f}.npz'
+        return fluence
 
-    fluence.save(tfname)
-    return tfname
+    
 
-def simulate(SNOwGLoBESdir, tarball_path, detector_input="all", *, detector_effects=True):
+def simulate(SNOwGLoBESdir, tarball_path, detector_input="all", *, detector_effects=True, save_file=True):
     """Calculate expected event rates for the given neutrino flux files and the given (set of) SNOwGLoBES detector(s).
     These event rates are given as a function of the neutrino energy and time, for each interaction channel.
 
@@ -217,7 +217,10 @@ def simulate(SNOwGLoBESdir, tarball_path, detector_input="all", *, detector_effe
         detector_input=[detector_input]
     rates_dict = {}
     #read the fluence
-    fluence = Container.load(tarball_path)
+    if isinstance(tarball_path, str):
+        fluence = Container.load(tarball_path)
+    else:
+        fluence = tarball_path
     for det in detector_input:
         rates_smeared=rc.run(fluence, det, detector_effects=True)
         rates_unsmeared=rc.run(fluence, det, detector_effects=False)
@@ -228,7 +231,7 @@ def simulate(SNOwGLoBESdir, tarball_path, detector_input="all", *, detector_effe
     # reorder results to produce the same format as before:
     #    {detector: {time_bin:{'weighted':{smeared/unsmeared: [rate vs energy bins]}}}}
     result = {}
-    fname_base = tarball_path[:tarball_path.rfind('.')]
+    fname_base = 'pippo'#tarball_path[:tarball_path.rfind('.')]
     for det in rates_dict:
         #get the time bins
         rates_smeared   = rates_dict[det]['weighted']['smeared']
@@ -253,11 +256,12 @@ def simulate(SNOwGLoBESdir, tarball_path, detector_input="all", *, detector_effe
                 result[det][f'{fname_base}_{n_bin:01d}'] = df
             else:
                 result[det][f'{fname_base}'] = df
-        
-    # save result to file for re-use in collate()
-    cache_file = f'{fname_base}.npy'
-    logging.info(f'Saving simulation results to {cache_file}')
-    np.save(cache_file, result)
+    
+    if save_file:
+        # save result to file for re-use in collate()
+        cache_file = f'{fname_base}.npy'
+        logging.info(f'Saving simulation results to {cache_file}')
+        np.save(cache_file, result)
     return result
 
 
@@ -280,7 +284,7 @@ def get_channel_label(c):
     else: 
         return re_chan_label.sub(gen_label, c) 
 
-def collate(tarball_path, skip_plots=False, *, smearing=True):
+def collate(tarball_path, skip_plots=False, *, smearing=True, save_file=True):
     """Collates SNOwGLoBES output files and generates plots or returns a data table.
 
     Parameters
@@ -339,12 +343,15 @@ def collate(tarball_path, skip_plots=False, *, smearing=True):
             plt.xlabel('Neutrino Energy (GeV)')
             plt.ylabel('Interaction Events')  
 
-    #read the results from storage
-    cache_file = tarball_path[:tarball_path.rfind('.')] + '.npy'
-    logging.info(f'Reading tables from {cache_file}')
-    tables = np.load(cache_file, allow_pickle=True).tolist()
-    #This output is similar to what produced by:
-    #tables = simulate(SNOwGLoBESdir, tarball_path,detector_input)
+    if isinstance(tarball_path, str):
+        #read the results from storage
+        cache_file = tarball_path[:tarball_path.rfind('.')] + '.npy'
+        logging.info(f'Reading tables from {cache_file}')
+        tables = np.load(cache_file, allow_pickle=True).tolist()
+        #This output is similar to what produced by:
+        #tables = simulate(SNOwGLoBESdir, tarball_path,detector_input)
+    else:
+        tables = tarball_path
 
     #dict for old-style results, for backward compatibiity
     results = {}
@@ -378,11 +385,20 @@ def collate(tarball_path, skip_plots=False, *, smearing=True):
                             plt.savefig(filename, dpi=300, bbox_inches='tight')
                             plt.close()
         #Make a tarfile with the condensed data files and plots
-        output_name = Path(tarball_path).stem
-        output_name = output_name[:output_name.rfind('.tar')]+'_SNOprocessed'
-        output_path = Path(tarball_path).parent/(output_name+'.tar.gz')
-        with tarfile.open(output_path, "w:gz") as tar:
-            for file in tempdir.iterdir():
-                tar.add(file,arcname=output_name+'/'+file.name)
-        logging.info(f'Created archive: {output_path}')
+        if save_file:
+            if isinstance(tarball_path, str):
+                output_name = Path(tarball_path).stem
+                output_name = output_name[:output_name.rfind('.tar')]+'_SNOprocessed'
+                output_path = Path(tarball_path).parent/(output_name+'.tar.gz')
+            else:
+                if isinstance(save_file, str):
+                    output_name = Path(save_file).stem
+                    output_path = save_file + '.tar.gz'
+                else:
+                    output_name = 'SNOwGLoBES_archive'
+                    output_path = 'SNOwGLoBES_archive.tar.gz'
+            with tarfile.open(output_path, "w:gz") as tar:
+                for file in tempdir.iterdir():
+                    tar.add(file,arcname=output_name+'/'+file.name)
+            logging.info(f'Created archive: {output_path}')
     return results 

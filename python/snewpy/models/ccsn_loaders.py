@@ -949,13 +949,13 @@ class Fischer_2020(PinchedModel):
 
 class Aenus_models(PinchedModel):
     def __init__(self, filename, rotation, Bfield,
-                 eos='LS220', los='avg', metadata={}):
+                 eos='LS220', los='avg', suffix='', metadata={}):
         ## Read ASCII files, similar to Garching but different
         mergtab = None
         for flavor in ThreeFlavor:
             _sfx = 'nua' if (flavor.is_electron and flavor.is_antineutrino) else flavor.name.replace('_', '').lower() if flavor.is_electron else "nux"
-            print(_sfx, (flavor.is_electron and flavor.is_antineutrino))
-            _filename = '{}-{}-{}-{}_{}_{}.txt'.format(filename, eos, rotation, Bfield, _sfx, los)
+            _filename = '{}-{}-{}-{}{}_{}_{}.txt'.format(filename, eos, rotation,
+                                                         Bfield, suffix, _sfx, los)
             _lname = 'L_{}'.format(flavor.name)
             _ename = 'E_{}'.format(flavor.name)
             _e2name = 'E2_{}'.format(flavor.name)
@@ -979,13 +979,10 @@ class Aenus_models(PinchedModel):
                 mergtab[_lname].fill_value = 0.
                 mergtab[_ename].fill_value = 0.
                 mergtab[_aname].fill_value = 0.
-        print('Here')
         simtab = mergtab.filled()
-        print('Done')
         if not metadata:
             metadata = {
                 'Progenitor mass': float(re.search(r'\d+(\.\d+)?',filename).group()) * u.Msun,
                 'EOS': eos,
             }
-        print('Done')
         super().__init__(simtab, metadata)
